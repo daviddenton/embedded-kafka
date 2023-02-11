@@ -1,0 +1,2 @@
+dev.forkhandles.embedded.kafka.junit5.KafkaClientArgumentResolver
+dev.forkhandles.embedded.kafka.junit5.KafkaAddressArgumentResolver

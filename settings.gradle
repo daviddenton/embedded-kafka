@@ -1,5 +1,12 @@
-rootProject.name = 'embedded-kafka'
+plugins {
+    id("de.fayard.refreshVersions").version("0.50.1")
+}
 
-include 'core'
-include 'reactor'
-include 'spring'
+refreshVersions {
+    enableBuildSrcLibs()
+
+    rejectVersionIf {
+        candidate.stabilityLevel.isLessStableThan(current.stabilityLevel)
+    }
+}
+

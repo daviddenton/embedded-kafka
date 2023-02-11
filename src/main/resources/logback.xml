@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <root level="error"/>
+    <logger level="ERROR" name="org.apache" />
+    <logger level="ERROR" name="ch.qos" />
+</configuration>

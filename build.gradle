@@ -1,99 +1,159 @@
-plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.2.30' apply false
-    id 'nebula.optional-base' version '3.3.0' apply false
-    id 'io.spring.dependency-management' version '1.0.4.RELEASE' apply false
-    id 'com.jfrog.bintray' version '1.8.0' apply false
-}
+import static org.gradle.api.JavaVersion.VERSION_11
 
-
-allprojects {
+buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
+        gradlePluginPortal()
+
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:_"
+        classpath("io.codearte.nexus-staging:io.codearte.nexus-staging.gradle.plugin:_")
     }
 }
 
+repositories {
+    mavenCentral()
+}
 
-subprojects { p ->
+apply plugin: "kotlin"
+apply plugin: 'io.codearte.nexus-staging'
+apply plugin: 'maven-publish'
 
-    p.ext {
-        artifactId = "embedded-kafka-$p.name".toString()
+version = project.hasProperty('releaseVersion') ? project.releaseVersion : 'LOCAL'
+group = 'dev.forkhandles'
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': project.name,
+            'Implementation-Vendor': 'dev.forkhandles',
+            'Implementation-Version': project.version,
+            'forkhandles_version': archiveVersion
     }
+}
 
-    p.apply from: "$rootDir/gradle/publishing.gradle"
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
+}
 
-    p.plugins.withId('io.spring.dependency-management') {
-        p.dependencyManagement {
-            dependencies {
-                dependency 'ch.qos.logback:logback-classic:1.2.3'
+tasks.register('sourcesJar', Jar) {
+    dependsOn classes
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
 
-                dependency 'com.google.code.findbugs:jsr305:3.0.2'
+tasks.register('testJar', Jar) {
+    classifier "test"
+    from sourceSets.test.output
+}
 
-                dependency('com.google.guava:guava:24.0-jre') {
-                    exclude 'com.google.code.findbugs:jsr305'
-                    exclude 'com.google.j2objc:j2objc-annotations'
-                    exclude 'org.codehaus.mojo:animal-sniffer-annotations'
-                }
+compileKotlin.kotlinOptions.jvmTarget = "11"
+compileTestKotlin.kotlinOptions.jvmTarget = "11"
 
-                dependency 'io.projectreactor.kafka:reactor-kafka:1.0.0.RELEASE'
+sourceCompatibility = VERSION_11
+targetCompatibility = VERSION_11
 
-                dependencySet(group: 'io.projectreactor', version: '3.1.5.RELEASE') {
-                    entry 'reactor-core'
-                    entry 'reactor-test'
-                }
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
 
-                dependencySet(group: 'org.apache.kafka', version: '1.0.1') {
-                    entry('kafka_2.12') {
-                        exclude 'log4j:log4j'
-                        exclude 'org.slf4j:slf4j-log4j12'
-                    }
-                    entry 'kafka-clients'
-                }
+artifacts {
+    testArtifacts testJar
+    archives sourcesJar
+}
 
-                dependency('org.apache.zookeeper:zookeeper:3.5.3-beta') {
-                    exclude 'log4j:log4j'
-                    exclude 'org.slf4j:slf4j-log4j12'
-                }
+def enableSigning = project.findProperty('sign') == "true"
 
-                dependency 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.2.30'
+apply plugin: 'maven-publish'
 
-                dependencySet(group: 'org.junit.jupiter', version: '5.1.0') {
-                    entry 'junit-jupiter-api'
-                    entry 'junit-jupiter-engine'
-                }
+if (enableSigning) { // when added it expects signing keys to be configured
+    apply plugin: 'signing'
 
-                dependencySet(group: 'org.slf4j', version: '1.7.25') {
-                    entry 'slf4j-api'
-                    entry 'log4j-over-slf4j'
-                }
+    signing {
+        def signingKey = findProperty("signingKey")
+        def signingPassword = findProperty("signingPassword")
+
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign publishing.publications
+    }
+}
+
+def nexusUsername = project.findProperty('nexusUsername') ?: "notset"
+def nexusPassword = project.findProperty('nexusPassword') ?: "notset"
+
+publishing {
+    repositories {
+        maven {
+            name 'SonatypeStaging'
+            url 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+            credentials {
+                username nexusUsername
+                password nexusPassword
+            }
+        }
+        maven {
+            name 'SonatypeSnapshot'
+            url 'https://oss.sonatype.org/content/repositories/snapshots/'
+            credentials {
+                username nexusUsername
+                password nexusPassword
             }
         }
     }
 
-    p.plugins.withId('java') {
-        p.apply plugin: 'io.spring.dependency-management'
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = archivesBaseName
 
-        p.archivesBaseName = p.ext.artifactId
+            pom.withXml {
+                asNode().appendNode('name', archivesBaseName)
+                asNode().appendNode('description', description)
+                asNode().appendNode('url', 'https://forkhandles.dev')
+                asNode().appendNode('developers')
+                    .appendNode('developer').appendNode('name', 'Nat Pryce').parent().appendNode('email', 'nat@forkhandles.dev')
+                    .parent().parent()
+                    .appendNode('developer').appendNode('name', 'David Denton').parent().appendNode('email', 'david@forkhandles.dev')
+                    .parent().parent()
+                    .appendNode('developer').appendNode('name', 'Dmitry Kandalov').parent().appendNode('email', 'dmitry@forkhandles.dev')
+                    .parent().parent()
+                    .appendNode('developer').appendNode('name', 'Duncan McGregor').parent().appendNode('email', 'duncan@forkhandles.dev')
+                asNode().appendNode('scm').
+                    appendNode('url', 'git@github.com:fork-handles/embedded-kafka.git').parent().
+                    appendNode('connection', 'scm:git:git@github.com:fork-handles/embedded-kafka.git').parent().
+                    appendNode('developerConnection', 'scm:git:git@github.com:fork-handles/embedded-kafka.git')
+                asNode().appendNode('licenses').appendNode('license').
+                    appendNode('name', 'MIT License').parent()
+            }
+            from components.java
 
-        p.dependencies {
-            compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
-            implementation 'org.slf4j:slf4j-api:1.7.25'
-            testImplementation 'org.junit.jupiter:junit-jupiter-api:5.1.0'
-            testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.1.0'
-            testRuntimeOnly 'ch.qos.logback:logback-classic:1.2.3'
-        }
+            pom.withXml {
+                asNode().dependencies."*".findAll() {
+                    it.scope.text() == "runtime"
+                }.each() {
+                    it.scope*.value = "provided"
+                }
+            }
 
-        p.tasks.withType(Test) {
-            useJUnitPlatform()
+            artifact sourcesJar
         }
     }
+}
 
-    p.plugins.withId('org.jetbrains.kotlin.jvm') {
-        p.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
-            kotlinOptions.jvmTarget = '1.8'
-        }
+dependencies {
+    api(Kotlin.stdlib.jdk8)
+    api("com.google.guava:guava:_")
+    api("org.apache.kafka:kafka_2.13:_")
+    api("org.apache.zookeeper:zookeeper:_")
+    api(Testing.junit.jupiter.api)
 
-        p.dependencies {
-            implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
-        }
-    }
+    testApi(Testing.junit.jupiter.api)
+    testApi(Testing.junit.jupiter.engine)
 }
