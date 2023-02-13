@@ -36,7 +36,7 @@ jar {
         attributes 'Implementation-Title': project.name,
             'Implementation-Vendor': 'dev.forkhandles',
             'Implementation-Version': project.version,
-            'forkhandles_version': archiveVersion
+            'embedded-kafka-Version': archiveVersion
     }
 }
 
