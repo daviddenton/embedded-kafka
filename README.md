@@ -13,7 +13,7 @@ Example (Gradle):
 
 ```kotlin
 dependencies {
-    testApi("dev.forkhandles:embedded-kafka:0.0.1")
+    testApi("dev.forkhandles:embedded-kafka:1.0.0")
 }
 ```
 
