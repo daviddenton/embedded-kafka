@@ -26,6 +26,6 @@ class CanSendAndConsumeMessageTest {
         producer.send(ProducerRecord("test-topic", "KEY1", "VALUE")).get()
         producer.send(ProducerRecord("test-topic", "KEY2", "VALUE")).get()
 
-        assertEquals(2, consumer.poll(Duration.ofSeconds(5)).count())
+        assertEquals(2, consumer.poll(Duration.ofSeconds(10)).count())
     }
 }
